@@ -21,11 +21,23 @@ ENROLL_VIDEO_DURATION     = 10       # detik maksimum perekaman
 ENROLL_FRAME_SKIP         = 5        # ambil frame setiap N frame
 ENROLL_MIN_FRAMES         = 5        # minimal frame valid untuk enrollment
 ENROLL_MAX_FRAMES         = 30       # maksimal frame untuk diproses
-BLUR_THRESHOLD            = 100.0    # Laplacian variance; di bawah ini = blur
+BLUR_THRESHOLD            = 15.0     # ← disesuaikan dgn webcam (actual min ~22)
+                                     # fungsi: filter HANYA frame yang benar2 freeze/hitam
+                                     # ranking frame tetap berdasarkan blur score tertinggi
 FACE_SIZE_MIN_RATIO       = 0.08     # wajah harus ≥ 8% lebar frame
 FACE_MARGIN_RATIO         = 0.10     # margin toleransi wajah terpotong (10%)
-FACE_MODEL                = "hog"    # "hog" (CPU cepat) atau "cnn" (GPU akurat)
-ENCODING_NUM_JITTERS      = 1        # jitter augmentasi embedding (1=cepat)
+CAMERA_WARMUP_FRAMES      = 30       # skip N frame pertama (sensor masih adjust)
+ENROLL_FRAME_AVERAGE      = 3        # average N frame berturutan untuk kurangi noise
+
+# ─── Noise Reduction (Preprocessing) ────────────────────────────────────────
+# Bilateral filter: denoising tapi preserve tepi wajah
+BILATERAL_D          = 9            # diameter pixel neighborhood (lebih besar = lebih smooth)
+BILATERAL_SIGMA_COLOR = 75          # sigma ruang warna (lebih besar = more denoising)
+BILATERAL_SIGMA_SPACE = 75          # sigma ruang (lebih besar = pixel lebih jauh berpengaruh)
+# CLAHE: normalisasi kontras adaptif (mengatasi pencahayaan tidak merata)
+CLAHE_CLIP_LIMIT     = 2.0          # batas amplifikasi kontras (1.0-4.0)
+CLAHE_TILE_GRID      = (8, 8)       # ukuran grid tile
+ENABLE_PREPROCESSING = True         # aktifkan/nonaktifkan preprocessing (True = aktif)
 
 # ─── Absensi ────────────────────────────────────────────────────────────────
 COSINE_SIMILARITY_THRESHOLD = 0.55   # similarity ≥ ini → dianggap match

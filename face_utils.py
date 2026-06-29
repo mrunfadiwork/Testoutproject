@@ -13,11 +13,14 @@ import threading
 
 from config import (
     BLUR_THRESHOLD, FACE_SIZE_MIN_RATIO, FACE_MARGIN_RATIO,
-    CAMERA_INDEX
+    CAMERA_INDEX,
+    BILATERAL_D, BILATERAL_SIGMA_COLOR, BILATERAL_SIGMA_SPACE,
+    CLAHE_CLIP_LIMIT, CLAHE_TILE_GRID, ENABLE_PREPROCESSING
 )
 
 # ─── Singleton InsightFace ────────────────────────────────────────────────────
 _insight_app = None
+_clahe       = None    # CLAHE singleton
 _lock        = threading.Lock()
 
 
@@ -34,6 +37,17 @@ def _get_insight():
                 app.prepare(ctx_id=0, det_size=(320, 320))
                 _insight_app = app
     return _insight_app
+
+
+def _get_clahe():
+    """Lazy-init CLAHE untuk normalisasi kontras adaptif."""
+    global _clahe
+    if _clahe is None:
+        _clahe = cv2.createCLAHE(
+            clipLimit=CLAHE_CLIP_LIMIT,
+            tileGridSize=CLAHE_TILE_GRID
+        )
+    return _clahe
 
 
 # ─── Camera ──────────────────────────────────────────────────────────────────
@@ -54,6 +68,55 @@ def open_camera() -> cv2.VideoCapture:
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
     cap.set(cv2.CAP_PROP_FPS, 30)
     return cap
+
+
+# ─── Preprocessing Pipeline (Noise Reduction) ────────────────────────────────
+
+def preprocess_frame(frame_bgr: np.ndarray) -> np.ndarray:
+    """
+    Pipeline 3-langkah untuk mengurangi noise kamera laptop:
+      1. Bilateral Filter  → denoising sambil preserve tepi wajah
+      2. CLAHE (Lab space)  → normalisasi kontras adaptif per-tile
+      3. Unsharp Mask       → recovery detail halus setelah denoising
+    Return frame BGR yang sudah bersih.
+    """
+    if not ENABLE_PREPROCESSING:
+        return frame_bgr
+
+    # 1. Bilateral filter — noise hilang, tepi wajah tetap tajam
+    denoised = cv2.bilateralFilter(
+        frame_bgr,
+        d=BILATERAL_D,
+        sigmaColor=BILATERAL_SIGMA_COLOR,
+        sigmaSpace=BILATERAL_SIGMA_SPACE
+    )
+
+    # 2. CLAHE hanya pada kanal L (Lightness) di ruang warna Lab
+    #    → mengatasi wajah terlalu gelap/terang akibat backlight
+    lab     = cv2.cvtColor(denoised, cv2.COLOR_BGR2Lab)
+    l, a, b = cv2.split(lab)
+    l_eq    = _get_clahe().apply(l)
+    enhanced = cv2.cvtColor(cv2.merge([l_eq, a, b]), cv2.COLOR_Lab2BGR)
+
+    # 3. Unsharp Mask — pulihkan detail yang sedikit hilang setelah denoising
+    blurred   = cv2.GaussianBlur(enhanced, (0, 0), sigmaX=2.0)
+    sharpened = cv2.addWeighted(enhanced, 1.5, blurred, -0.5, 0)
+
+    return sharpened
+
+
+def average_frames(frames: list) -> np.ndarray:
+    """
+    Rata-rata N frame berurutan untuk kurangi random temporal noise.
+    Noise acak saling meniadakan saat di-average → gambar lebih bersih.
+    frames: list of BGR np.ndarray
+    """
+    if not frames:
+        raise ValueError("frames list kosong")
+    if len(frames) == 1:
+        return frames[0]
+    stacked = np.stack(frames, axis=0).astype(np.float32)
+    return np.clip(stacked.mean(axis=0), 0, 255).astype(np.uint8)
 
 
 # ─── Quality Filters ─────────────────────────────────────────────────────────
@@ -84,14 +147,14 @@ def is_face_too_small(bbox_xyxy: Tuple, frame_shape: Tuple,
 
 def get_all_faces(frame_bgr: np.ndarray) -> list:
     """
-    Jalankan InsightFace pada frame BGR.
-    Return list face objects, masing-masing punya:
-      .bbox  → np.array [x1,y1,x2,y2]
-      .embedding → np.array (512,) atau None
+    Preprocessing + InsightFace detection + embedding.
+    Frame diproses melalui pipeline noise reduction sebelum dianalisis.
+    Return list face objects.
     """
     try:
-        app   = _get_insight()
-        faces = app.get(frame_bgr)
+        processed = preprocess_frame(frame_bgr)
+        app       = _get_insight()
+        faces     = app.get(processed)
         return faces if faces else []
     except Exception:
         return []

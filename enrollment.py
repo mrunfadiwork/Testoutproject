@@ -13,7 +13,8 @@ import face_utils as fu
 import database as db
 from config import (
     ENROLL_FRAME_SKIP, ENROLL_MIN_FRAMES, ENROLL_MAX_FRAMES,
-    ENROLL_VIDEO_DURATION, EMBEDDINGS_DIR, BLUR_THRESHOLD
+    ENROLL_VIDEO_DURATION, EMBEDDINGS_DIR, BLUR_THRESHOLD,
+    CAMERA_WARMUP_FRAMES, ENROLL_FRAME_AVERAGE
 )
 
 
@@ -45,9 +46,16 @@ class EnrollmentSession:
             return
         self._log("Kamera berhasil dibuka.")
 
-        self.running = True
-        frame_idx    = 0
-        start_time   = time.time()
+        # ── Camera Warmup: buang N frame pertama (sensor masih adjust) ──
+        self._log(f"Warming up kamera ({CAMERA_WARMUP_FRAMES} frame)...")
+        for _ in range(CAMERA_WARMUP_FRAMES):
+            cap.read()
+        self._log("Kamera siap.")
+
+        self.running  = True
+        frame_idx     = 0
+        start_time    = time.time()
+        frame_buffer  = []   # buffer untuk frame averaging
 
         try:
             while self.running:
@@ -66,7 +74,21 @@ class EnrollmentSession:
                     continue
 
                 frame_idx += 1
-                gray       = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
+
+                # ── Cek blur pada frame MENTAH (sebelum averaging) ──
+                # Averaging menurunkan sharpness, jadi cek blur dulu di sini
+                raw_gray   = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
+                blur_score = fu.compute_blur_score(raw_gray)
+                blur_ok    = not fu.is_blurry(raw_gray, BLUR_THRESHOLD)
+
+                # ── Frame averaging: kumpulkan N frame lalu rata-rata ──
+                frame_buffer.append(frame_bgr)
+                if len(frame_buffer) < ENROLL_FRAME_AVERAGE:
+                    continue                 # belum cukup, kumpulkan dulu
+                frame_bgr = fu.average_frames(frame_buffer)
+                frame_buffer.clear()        # reset buffer
+
+                gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
 
                 # ── Deteksi + embedding via InsightFace ──
                 faces = fu.get_all_faces(frame_bgr)
@@ -79,8 +101,7 @@ class EnrollmentSession:
 
                 bbox = face.bbox   # [x1,y1,x2,y2]
 
-                # ── Quality checks ──
-                blur_ok = not fu.is_blurry(gray, BLUR_THRESHOLD)
+                # ── Quality checks (blur sudah dihitung dari frame mentah) ──
                 crop_ok = not fu.is_face_cropped(bbox, frame_bgr.shape)
                 size_ok = not fu.is_face_too_small(bbox, frame_bgr.shape)
 
@@ -88,7 +109,7 @@ class EnrollmentSession:
 
                 if not (blur_ok and crop_ok and size_ok):
                     reasons = []
-                    if not blur_ok: reasons.append("blur")
+                    if not blur_ok: reasons.append(f"blur({blur_score:.0f})")
                     if not crop_ok: reasons.append("terpotong")
                     if not size_ok: reasons.append("terlalu kecil")
                     fu.draw_face_box_xyxy(annotated, bbox, ", ".join(reasons),
@@ -101,7 +122,7 @@ class EnrollmentSession:
                 if frame_idx % ENROLL_FRAME_SKIP != 0:
                     fu.draw_face_box_xyxy(annotated, bbox, "OK", 1.0)
                     self._emit_frame(annotated, len(self.good_embeddings),
-                                     f"✅ {len(self.good_embeddings)} frame — {remaining}s")
+                                     f"✅ {len(self.good_embeddings)} frame | sharpness:{blur_score:.0f} — {remaining}s")
                     continue
 
                 # ── Ambil embedding ──
@@ -109,8 +130,8 @@ class EnrollmentSession:
                 if embedding is None:
                     continue
 
-                blur_score = fu.compute_blur_score(gray)
                 self.good_embeddings.append(embedding)
+
                 self.blur_scores.append(blur_score)
 
                 fu.draw_face_box_xyxy(annotated, bbox,
