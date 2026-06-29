@@ -1,0 +1,24 @@
+# Python build/cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Environments
+.env
+venv/
+ENV/
+env/
+.venv/
+
+# Project specific data (database, local embeddings, and snapshots)
+data/face_db.sqlite
+data/embeddings/*.npy
+data/attendance_photos/*.jpg
+data/cam_test_index_*.jpg
+
+# Editor settings
+.vscode/
+.idea/
+*.swp
+*.swo
