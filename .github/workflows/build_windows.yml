@@ -59,12 +59,11 @@ jobs:
           }
         shell: pwsh
 
-      # ── 7. Zip the output folder ─────────────────────────────────────────────
+      # ── 7. Zip the output folder with maximum compression using 7z ───────────
       - name: Create release archive
         run: |
-          Compress-Archive -Path dist\FaceAttendance\* `
-                           -DestinationPath dist\FaceAttendance-Windows.zip
-        shell: pwsh
+          7z a -tzip -mx=9 dist\FaceAttendance-Windows.zip .\dist\FaceAttendance\*
+        shell: cmd
 
       # ── 8. Upload as workflow artifact ──────────────────────────────────────
       #    Download from the Actions tab → Artifacts section after the run.

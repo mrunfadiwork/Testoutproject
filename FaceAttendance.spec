@@ -64,10 +64,24 @@ a = Analysis(
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
-        # Exclude large packages we don't use to keep binary size down
-        "matplotlib", "IPython", "jupyter", "notebook",
+        # Exclude large unused packages to minimize bundle size
+        "pandas",
+        "matplotlib",
+        "IPython", "jupyter", "notebook",
         "tensorflow", "torch", "torchvision",
         "PyQt5", "PyQt6", "wx",
+        # Exclude massive unused scipy submodules (only keep minimum needed for skimage)
+        "scipy.stats",
+        "scipy.optimize",
+        "scipy.fft",
+        "scipy.special",
+        "scipy.signal",
+        "scipy.cluster",
+        "scipy.io",
+        "scipy.odr",
+        "scipy.integrate",
+        # Other heavy packages that might get pulled in
+        "jedi", "parso", "numpy.random._examples",
     ],
     cipher=block_cipher,
     noarchive=False,
