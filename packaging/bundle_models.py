@@ -40,7 +40,7 @@ def download_and_bundle():
         print(f"ERROR: Model directory not found at {src}")
         sys.exit(1)
 
-    print(f"\nStep 2: Copying models from:\n  {src}\n  → {DST_ROOT}")
+    print(f"\nStep 2: Copying models from:\n  {src}\n  -> {DST_ROOT}")
     os.makedirs(DST_ROOT, exist_ok=True)
 
     copied = 0

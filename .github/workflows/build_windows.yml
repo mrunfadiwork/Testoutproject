@@ -11,6 +11,12 @@ jobs:
     name: Build Windows .exe
     runs-on: windows-latest
 
+    # Force UTF-8 for all Python I/O — Windows defaults to cp1252 which
+    # crashes on any non-ASCII characters in print() or log output.
+    env:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+
     steps:
       # ── 1. Checkout source ──────────────────────────────────────────────────
       - name: Checkout repository
