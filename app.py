@@ -3,6 +3,15 @@ app.py - Sistem Absensi Berbasis Pengenalan Wajah
 Main entry point dengan GUI Tkinter modern.
 """
 
+import os
+import sys
+import logging
+
+# macOS: must be set BEFORE cv2 is imported so OpenCV does not try to spin
+# the AVFoundation auth runloop from a background thread (which fails silently).
+if sys.platform == "darwin":
+    os.environ.setdefault("OPENCV_AVFOUNDATION_SKIP_AUTH", "1")
+
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
 import threading
@@ -11,12 +20,41 @@ import cv2
 import numpy as np
 from PIL import Image, ImageTk
 from datetime import datetime
-import os
+
+# Enable logging so face_utils backend warnings/errors appear in the terminal
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%H:%M:%S",
+)
 
 import database as db
 from enrollment import EnrollmentSession
 from attendance import AttendanceSession
 from config import *
+
+
+def _macos_prewarm_camera():
+    """
+    macOS only: open + immediately release the camera once on the MAIN THREAD
+    so that AVFoundation records a successful permission grant for this process.
+    After this call, subsequent opens from background threads work reliably.
+    """
+    if sys.platform != "darwin":
+        return
+    logging.info("macOS: pre-warming camera on main thread...")
+    for idx in [0, 1, 2]:
+        cap = cv2.VideoCapture(idx)
+        if cap.isOpened():
+            cap.read()
+            cap.release()
+            logging.info(f"macOS: camera pre-warm OK (index {idx}).")
+            return
+    logging.warning(
+        "macOS: camera pre-warm failed.\n"
+        "Go to System Settings → Privacy & Security → Camera\n"
+        "and enable access for Terminal / Python."
+    )
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers
@@ -494,6 +532,13 @@ class App(tk.Tk):
         self.configure(bg=THEME_BG)
         self.resizable(True, True)
         apply_dark_style(self)
+
+        # macOS: pre-warm camera on main thread for permission grant
+        _macos_prewarm_camera()
+
+        # Log which face detection backend will be used
+        from face_utils import get_backend
+        logging.info(f"App starting. Face detection backend: {get_backend()}")
 
         self._build_header()
         self._build_tabs()

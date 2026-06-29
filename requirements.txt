@@ -1,6 +1,18 @@
+# Core
 opencv-python>=4.8.0
-face-recognition>=1.3.0
 numpy>=1.24.0
 Pillow>=10.0.0
 scipy>=1.11.0
 pandas>=2.0.0
+
+# Face detection – Backend 1 (preferred, best accuracy)
+# Works on Windows, Linux, macOS Intel/Apple Silicon
+insightface>=0.7.3
+onnxruntime>=1.16.0
+
+# Face detection – Backend 2 (fallback if insightface unavailable)
+# NOTE: requires cmake + C++ compiler to build dlib.
+#   macOS:   brew install cmake
+#   Ubuntu:  sudo apt install cmake build-essential
+#   Windows: install Visual Studio Build Tools
+face-recognition>=1.3.0

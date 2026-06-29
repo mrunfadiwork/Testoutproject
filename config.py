@@ -43,7 +43,7 @@ ENABLE_PREPROCESSING = True         # aktifkan/nonaktifkan preprocessing (True =
 COSINE_SIMILARITY_THRESHOLD = 0.55   # similarity ≥ ini → dianggap match
 ATTENDANCE_COOLDOWN_HOURS   = 8      # jam cooldown per user per hari
 RECOGNITION_SMOOTHING       = 5      # jumlah frame untuk stabilisasi prediksi
-DISPLAY_FPS                 = 30     # target FPS tampilan webcam
+DISPLAY_FPS                 = 60     # target FPS tampilan webcam
 
 # ─── Kamera ─────────────────────────────────────────────────────────────────
 CAMERA_INDEX = 0             # Index 0 = webcam laptop (sudah diverifikasi)

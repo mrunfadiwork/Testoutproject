@@ -1,0 +1,13 @@
+# Core
+opencv-python>=4.8.0
+numpy>=1.26.0,<2.0.0
+Pillow>=10.0.0
+scipy>=1.11.0
+pandas>=2.0.0
+
+# Face detection (primary backend)
+insightface>=0.7.3
+onnxruntime>=1.16.0
+
+# Build tool
+pyinstaller>=6.0.0

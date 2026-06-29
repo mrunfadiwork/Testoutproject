@@ -1,0 +1,92 @@
+name: Build Windows EXE
+
+on:
+  push:
+    branches: [ main, master ]
+    tags:     [ "v*" ]          # also trigger on version tags (e.g. v1.0.0)
+  workflow_dispatch:             # allow manual trigger from GitHub UI
+
+jobs:
+  build-windows:
+    name: Build Windows .exe
+    runs-on: windows-latest
+
+    steps:
+      # ── 1. Checkout source ──────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Set up Python ────────────────────────────────────────────────────
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      # ── 3. Install build dependencies ───────────────────────────────────────
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-windows.txt
+
+      # ── 4. Download & bundle InsightFace models ─────────────────────────────
+      #    The bundle_models.py script triggers the buffalo_sc download from
+      #    GitHub and copies the .onnx files into insightface_models/ so the
+      #    spec file can include them in the bundle.
+      - name: Bundle InsightFace models
+        run: python build/bundle_models.py
+
+      # ── 5. Build the .exe with PyInstaller ──────────────────────────────────
+      - name: Build with PyInstaller
+        run: pyinstaller FaceAttendance.spec --noconfirm
+
+      # ── 6. Verify the executable exists ─────────────────────────────────────
+      - name: Verify build output
+        run: |
+          if (Test-Path "dist\FaceAttendance\FaceAttendance.exe") {
+            Write-Host "✅ Build succeeded: FaceAttendance.exe found"
+            $size = (Get-Item "dist\FaceAttendance\FaceAttendance.exe").Length / 1MB
+            Write-Host "   EXE size: $([math]::Round($size, 1)) MB"
+          } else {
+            Write-Error "❌ Build failed: FaceAttendance.exe not found"
+            exit 1
+          }
+        shell: pwsh
+
+      # ── 7. Zip the output folder ─────────────────────────────────────────────
+      - name: Create release archive
+        run: |
+          Compress-Archive -Path dist\FaceAttendance\* `
+                           -DestinationPath dist\FaceAttendance-Windows.zip
+        shell: pwsh
+
+      # ── 8. Upload as workflow artifact ──────────────────────────────────────
+      #    Download from the Actions tab → Artifacts section after the run.
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FaceAttendance-Windows
+          path: dist/FaceAttendance-Windows.zip
+          retention-days: 30
+
+      # ── 9. Attach to GitHub Release (only on version tags) ──────────────────
+      - name: Upload to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/FaceAttendance-Windows.zip
+          name: "Face Attendance ${{ github.ref_name }}"
+          body: |
+            ## Face Attendance System — Windows Release
+
+            ### Installation
+            1. Download and extract `FaceAttendance-Windows.zip`
+            2. Run `FaceAttendance.exe` — no Python installation required
+            3. Allow camera access when prompted by Windows
+
+            ### What's included
+            - InsightFace AI models (bundled, no internet required)
+            - All dependencies (OpenCV, ONNX Runtime, etc.)
+            - Data is saved to `%APPDATA%\FaceAttendance\`
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
