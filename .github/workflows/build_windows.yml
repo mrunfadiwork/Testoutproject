@@ -34,7 +34,7 @@ jobs:
       #    GitHub and copies the .onnx files into insightface_models/ so the
       #    spec file can include them in the bundle.
       - name: Bundle InsightFace models
-        run: python build/bundle_models.py
+        run: python packaging/bundle_models.py
 
       # ── 5. Build the .exe with PyInstaller ──────────────────────────────────
       - name: Build with PyInstaller

@@ -92,7 +92,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon="build/app.ico",    # Windows taskbar / file icon
+    icon="packaging/app.ico",    # Windows taskbar / file icon
 )
 
 # ── Collect into one folder (onedir mode — faster startup than onefile) ───────
